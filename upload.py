@@ -10,5 +10,7 @@ upload_documents(
     supabase_url=os.getenv("SUPABASE_URL"),
     supabase_key=os.getenv("SUPABASE_SERVICE_KEY"),
     embedding_provider="vertex",  # or "vertex"
-    api_key="your_api_key"
+    api_key="your_api_key",
+    project_id=os.getenv("GCP_PROJECT_ID"),  # Required for vertex
+    location=os.getenv("GCP_LOCATION") 
 )

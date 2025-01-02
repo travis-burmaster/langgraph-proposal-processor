@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Literal
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.embeddings import VertexAIEmbeddings
+from langchain_community.embeddings import OpenAIEmbeddings
+from langchain_community.embeddings import VertexAIEmbeddings
 from langchain_community.vectorstores import SupabaseVectorStore
 from supabase import create_client
 
