@@ -12,10 +12,23 @@ from reportlab.pdfgen import canvas
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
 from google.cloud import aiplatform
-import smtplib, time, os
-import logging
+from absl import logging as absl_logging
+import smtplib, time, os, logging, grpc
 
 os.environ['GRPC_ENABLE_FORK_SUPPORT'] = '0'
+absl_logging.set_verbosity(absl_logging.INFO)
+
+def init_grpc():
+    try:
+        channel = grpc.insecure_channel('localhost:50051')
+        grpc.channel_ready_future(channel).result(timeout=10)
+    except grpc.FutureTimeoutError:
+        pass
+    except Exception as e:
+        logger.warning(f"gRPC initialization warning: {str(e)}")
+
+init_grpc()
+
 
 logging.basicConfig(
     level=logging.INFO,

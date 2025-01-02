@@ -8,3 +8,5 @@ openai>=1.0.0
 python-dotenv>=1.0.0
 langchain-google-vertexai
 PyPDF2
+grpcio
+absl-py
