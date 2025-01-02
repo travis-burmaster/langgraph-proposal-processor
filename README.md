@@ -53,18 +53,21 @@ create table documents (
 );
 
 -- Create a function to handle vector similarity search
-create or replace function match_documents (
+
+
+-- Create a function to handle vector similarity search
+create or replace function public.match_documents (
   query_embedding vector(768),
-  match_count int
-) returns table (id bigint, content text, metadata jsonb, similarity float)
+  match_count int default 10
+) returns table (id uuid, content text, metadata jsonb, similarity float)
 language plpgsql
 as $$
 begin
   return query
   select
-    id,
-    content,
-    metadata,
+    documents.id, 
+    documents.content,
+    documents.metadata,
     1 - (documents.embedding <=> query_embedding) as similarity
   from documents
   order by documents.embedding <=> query_embedding

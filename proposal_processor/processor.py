@@ -1,5 +1,4 @@
 from typing import TypedDict, Optional,List
-
 from langgraph.graph import StateGraph, START, END
 from langchain.chat_models import ChatOpenAI
 from typing import Dict, Optional
@@ -14,7 +13,7 @@ from reportlab.pdfgen import canvas
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
 from google.cloud import aiplatform
-import smtplib
+import smtplib, time
 
 class ProposalProcessor:
     def __init__(
@@ -28,7 +27,8 @@ class ProposalProcessor:
         credentials_path: Optional[str] = None,
         email_config: Optional[TypedDict] = None
     ):
-        
+        self.wait_between_api_calls = 35
+
         # Initialize LLM based on provider
         if llm_provider == "openai":
             if not openai_api_key:
@@ -47,7 +47,7 @@ class ProposalProcessor:
             #     credentials=credentials_path
             # )
             self.llm = ChatVertexAI(
-                model_name="gemini-1.5-flash",
+                model_name="gemini-1.5-flash-002",
                 max_output_tokens=2048,
                 temperature=0.2,
                 project=gcp_project_id,
@@ -68,10 +68,11 @@ class ProposalProcessor:
         self.vectorstore = SupabaseVectorStore(
             client=self.supabase,
             embedding=embeddings,
-            table_name="documents"
+            table_name="documents",
+            query_name="match_documents"
         )
 
-        self.retriever = (self.vectorstore).as_retriever()
+        self.retriever = (self.vectorstore).as_retriever(search_kwargs={"k": 10})
 
     def retrieve_opportunity_docs(self, state: TypedDict) -> TypedDict:
         docs = self.retriever.get_relevant_documents(
@@ -81,6 +82,7 @@ class ProposalProcessor:
         return state
 
     def retrieve_corporate_docs(self, state: TypedDict) -> TypedDict:
+        time.sleep(self.wait_between_api_calls)
         docs = self.retriever.get_relevant_documents(
             "company overview history mission values"
         )
@@ -88,6 +90,7 @@ class ProposalProcessor:
         return state
 
     def retrieve_staff_docs(self, state: TypedDict) -> TypedDict:
+        time.sleep(self.wait_between_api_calls)
         docs = self.retriever.get_relevant_documents(
             "staff profiles expertise qualifications experience"
         )
@@ -95,6 +98,7 @@ class ProposalProcessor:
         return state
 
     def retrieve_capabilities_docs(self, state: TypedDict) -> TypedDict:
+        time.sleep(self.wait_between_api_calls)
         opportunity_text = "\n".join([doc.page_content for doc in state["opportunity_docs"]])
         query = f"capabilities and competencies relevant to: {opportunity_text}"
         docs = self.retriever.get_relevant_documents(query)
@@ -102,6 +106,7 @@ class ProposalProcessor:
         return state
 
     def retrieve_experience_docs(self, state: TypedDict) -> TypedDict:
+        time.sleep(self.wait_between_api_calls)
         opportunity_text = "\n".join([doc.page_content for doc in state["opportunity_docs"]])
         query = f"past projects and experience relevant to: {opportunity_text}"
         docs = self.retriever.get_relevant_documents(query)
@@ -199,21 +204,20 @@ class ProposalProcessor:
         workflow = StateGraph(self.ProposalState)
 
         workflow.add_node("opportunity", self.retrieve_opportunity_docs)
-        # workflow.add_node("corporate", self.retrieve_corporate_docs)
-        # workflow.add_node("staff", self.retrieve_staff_docs)
-        # workflow.add_node("capabilities", self.retrieve_capabilities_docs)
-        # workflow.add_node("experience", self.retrieve_experience_docs)
-        # workflow.add_node("build", self.build_document)
+        workflow.add_node("corporate", self.retrieve_corporate_docs)
+        workflow.add_node("staff", self.retrieve_staff_docs)
+        workflow.add_node("capabilities", self.retrieve_capabilities_docs)
+        workflow.add_node("experience", self.retrieve_experience_docs)
+        workflow.add_node("build", self.build_document)
         workflow.add_node("email", self.send_email)
 
         workflow.add_edge(START, "opportunity")  # Set as the entry point
-        #workflow.add_edge("opportunity", "corporate")
-        workflow.add_edge("opportunity", "email")
-        # workflow.add_edge("corporate", "staff")
-        # workflow.add_edge("staff", "capabilities")
-        # workflow.add_edge("capabilities", "experience")
-        # workflow.add_edge("experience", "build")
-        # workflow.add_edge("build", "email")
+        workflow.add_edge("opportunity", "corporate")
+        workflow.add_edge("corporate", "staff")
+        workflow.add_edge("staff", "capabilities")
+        workflow.add_edge("capabilities", "experience")
+        workflow.add_edge("experience", "build")
+        workflow.add_edge("build", "email")
         workflow.add_edge("email", END)
 
     # Compile and return the workflow
