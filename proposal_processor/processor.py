@@ -22,13 +22,6 @@ class ProposalProcessor:
         credentials_path: Optional[str] = None,
         email_config: Optional[Dict] = None
     ):
-        self.supabase = create_client(supabase_url, supabase_key)
-        self.vectorstore = SupabaseVectorStore(
-            client=self.supabase,
-            embedding_function="openai",
-            table_name="documents"
-        )
-        self.retriever = (self.vectorstore).as_retriever()
         
         # Initialize LLM based on provider
         if llm_provider == "openai":
@@ -36,28 +29,43 @@ class ProposalProcessor:
                 raise ValueError("OpenAI API key required when using OpenAI provider")
             self.llm = ChatOpenAI(
                 model_name="gpt-4-turbo-preview",
-                api_key=openai_api_key
+                api_key=openai_api_key,
+                embeddings = OpenAIEmbeddings(openai_api_key)
             )
         elif llm_provider == "vertex":
             if not all([gcp_project_id, gcp_location, credentials_path]):
                 raise ValueError("gcp_project_id, gcp_location, and credentials_path required for Vertex AI")
-            aiplatform.init(
-                project=gcp_project_id,
-                gcp_location=gcp_location,
-                credentials=credentials_path
-            )
+            # aiplatform.init(
+            #     project=gcp_project_id,
+            #     gcp_location=gcp_location,
+            #     credentials=credentials_path
+            # )
             self.llm = ChatVertexAI(
-                model_name="gemini-pro",
+                model_name="gemini-1.5-flash",
                 max_output_tokens=2048,
                 temperature=0.2,
                 project=gcp_project_id,
-                gcp_location=gcp_location,
+                location=gcp_location,
                 credentials_path=credentials_path
+            )
+            embeddings = VertexAIEmbeddings(
+                model_name="text-embedding-004",
+                project=project_id,
+                location=gcp_location
             )
         else:
             raise ValueError(f"Unsupported LLM provider: {llm_provider}")
             
         self.email_config = email_config
+
+        self.supabase = create_client(supabase_url, supabase_key)
+        self.vectorstore = SupabaseVectorStore(
+            client=self.supabase,
+            embedding=embeddings,
+            table_name="documents"
+        )
+
+        self.retriever = (self.vectorstore).as_retriever()
 
     def retrieve_opportunity_docs(self, state: Dict) -> Dict:
         docs = self.retriever.get_relevant_documents(
