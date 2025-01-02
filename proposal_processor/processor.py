@@ -128,6 +128,19 @@ class ProposalProcessor:
         logger.info("Retrieved %d experience documents", len(docs))
         state["experience_docs"] = docs
         return state
+    
+    def export_debug_section(section: str, content: any, output_dir: str = "debug_output"):
+        """Export section content to a text file for debugging."""
+        os.makedirs(output_dir, exist_ok=True)
+        filename = f"{section.lower().replace(' ', '_')}.txt"
+        filepath = os.path.join(output_dir, filename)
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            if isinstance(content, list):
+                f.write("\n".join([doc.page_content for doc in content]))
+            else:
+                f.write(str(content))
+        logger.info(f"Exported debug file: {filepath}")
 
     def generate_section(self, state: TypedDict, section: str, docs_key: str) -> str:
         logger.info("Generating section: %s", section)
@@ -163,6 +176,7 @@ class ProposalProcessor:
         for section, docs_key in sections.items():
             logger.info("Generating section: %s", section)
             content[section] = self.generate_section(state, section, docs_key)
+            export_debug_section(section, content[section])
             time.sleep(self.wait_between_api_sections)
             
         pdf_path = "proposal_response.pdf"
