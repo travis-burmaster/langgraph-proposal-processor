@@ -11,7 +11,7 @@ processor = ProposalProcessor(
     supabase_key=os.getenv("SUPABASE_SERVICE_KEY"),
     openai_api_key=os.getenv("OPENAI_API_KEY"),
     use_vertex_ai=os.getenv("USE_VERTEX_AI", "false").lower() == "true",
-    gcp_project=os.getenv("GCP_PROJECT_ID"),
+    gcp_project_id=os.getenv("GCP_PROJECT_ID"),
     gcp_location=os.getenv("GCP_LOCATION", "us-west1")
     vertex_ai_model="text-embedding-004",
     email_config={
