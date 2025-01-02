@@ -146,9 +146,7 @@ class ProposalProcessor:
         docs_text = "\n".join([doc.page_content for doc in state[docs_key]])
         chain = prompt | self.llm
         response = chain.invoke({"documents": docs_text})
-        logger.info("Generated content for section: ", section)
-        logger.info(type(response))
-        logger.info(response.content[:100])
+        logger.info(response.content[:10])
         return response
 
     def build_document(self, state: TypedDict) -> TypedDict:
