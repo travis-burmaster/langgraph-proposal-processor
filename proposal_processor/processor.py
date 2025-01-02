@@ -12,8 +12,10 @@ from reportlab.pdfgen import canvas
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
 from google.cloud import aiplatform
-import smtplib, time
+import smtplib, time, os
 import logging
+
+os.environ['GRPC_ENABLE_FORK_SUPPORT'] = '0'
 
 logging.basicConfig(
     level=logging.INFO,
@@ -145,11 +147,13 @@ class ProposalProcessor:
     def generate_section(self, state: TypedDict, section: str, docs_key: str) -> str:
         logger.info("Generating section: %s", section)
         templates = {
-            "corporate_overview": "Write a comprehensive corporate overview based on: {documents}",
-            "staff_profile": "Create detailed staff profiles highlighting relevant expertise based on: {documents}",
-            "capabilities": "Describe capabilities relevant to the opportunity requirements based on: {documents}",
-            "experience": "Detail relevant corporate experience and past projects based on: {documents}",
-            "responses": "Provide specific responses to opportunity questions and requirements based on: {documents}"
+            "corporate_overview": "Write a comprehensive corporate overview based on: {documents}"
+            #,"staff_profile": "Create detailed staff profiles highlighting relevant expertise based on: {documents}",
+            #"unique_valuation_propositions": "Identify and explain why Northramp is best for this opportunity based on: {documents}",
+            #"capabilities": "Describe capabilities relevant to the opportunity requirements based on: {documents}",
+            #"experience": "Detail relevant corporate experience and past projects based on: {documents}",
+            #"past_performance": "Summarize past performance and achievements based on: {documents}",
+            #"responses": "Provide specific responses to opportunity questions and requirements based on: {documents}"
         }
         
         prompt = PromptTemplate(
@@ -160,23 +164,22 @@ class ProposalProcessor:
         chain = prompt | self.llm
         response = chain.invoke({"documents": docs_text})
         logger.info(response.content[:10])
-        return response
+        return response.content
 
     def build_document(self, state: TypedDict) -> TypedDict:
         logger.info("Building document")
         sections = {
-            "corporate_overview": "corporate_docs",
-            "staff_profile": "staff_docs",
-            "capabilities": "capabilities_docs",
-            "experience": "experience_docs",
-            "responses": "opportunity_docs"
+            "corporate_overview": "corporate_docs"
+            #,"staff_profile": "staff_docs",
+            #"capabilities": "capabilities_docs",
+            #"experience": "experience_docs",
+            #"responses": "opportunity_docs"
         }
         
         content = {}
         for section, docs_key in sections.items():
             logger.info("Generating section: %s", section)
-            content[section] = self.generate_section(state, section, docs_key)
-            export_debug_section(section, content[section])
+            content[section] = self.generate_section(state, section, docs_key)            
             time.sleep(self.wait_between_api_sections)
             
         pdf_path = "proposal_response.pdf"
@@ -247,18 +250,19 @@ class ProposalProcessor:
 
         workflow.add_node("opportunity", self.retrieve_opportunity_docs)
         workflow.add_node("corporate", self.retrieve_corporate_docs)
-        workflow.add_node("staff", self.retrieve_staff_docs)
-        workflow.add_node("capabilities", self.retrieve_capabilities_docs)
-        workflow.add_node("experience", self.retrieve_experience_docs)
+        # workflow.add_node("staff", self.retrieve_staff_docs)
+        # workflow.add_node("capabilities", self.retrieve_capabilities_docs)
+        # workflow.add_node("experience", self.retrieve_experience_docs)
         workflow.add_node("build", self.build_document)
         workflow.add_node("email", self.send_email)
 
         workflow.add_edge(START, "opportunity")
         workflow.add_edge("opportunity", "corporate")
-        workflow.add_edge("corporate", "staff")
-        workflow.add_edge("staff", "capabilities")
-        workflow.add_edge("capabilities", "experience")
-        workflow.add_edge("experience", "build")
+        workflow.add_edge("corporate", "build")
+        # workflow.add_edge("corporate", "staff")
+        # workflow.add_edge("staff", "capabilities")
+        # workflow.add_edge("capabilities", "experience")
+        # workflow.add_edge("experience", "build")
         workflow.add_edge("build", "email")
         workflow.add_edge("email", END)
 
