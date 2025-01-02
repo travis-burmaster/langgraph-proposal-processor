@@ -1,8 +1,11 @@
 from typing import Dict, Optional
 from langgraph.graph import StateGraph, END
-from langchain.chat_models import ChatOpenAI, ChatVertexAI
+from langchain.chat_models import ChatOpenAI
 from langchain.prompts import PromptTemplate
 from langchain_community.vectorstores import SupabaseVectorStore
+from langchain_google_vertexai import VertexAI, VertexAIEmbeddings, ChatVertexAI
+
+#from langchain_openai import OpenAIEmbeddings
 from supabase import create_client
 from reportlab.pdfgen import canvas
 from email.mime.multipart import MIMEMultipart
@@ -40,19 +43,21 @@ class ProposalProcessor:
             #     gcp_location=gcp_location,
             #     credentials=credentials_path
             # )
-            self.llm = ChatVertexAI(
-                model_name="gemini-1.5-flash",
-                max_output_tokens=2048,
-                temperature=0.2,
-                project=gcp_project_id,
-                location=gcp_location,
-                credentials_path=credentials_path
-            )
             embeddings = VertexAIEmbeddings(
                 model_name="text-embedding-004",
-                project=project_id,
+                project=gcp_project_id,
                 location=gcp_location
             )
+            self.llm = ChatVertexAI(
+                model_name="gemini-1.5-flash",  # Specify the model (e.g., "gemini-1.5-flash")
+                max_output_tokens=2048,        # Set the maximum tokens for output
+                temperature=0.2,               # Control randomness in responses
+                project=gcp_project_id,
+                location=gcp_location,
+                credentials_path=credentials_path  # Provide the path to your credentials
+            )
+
+          
         else:
             raise ValueError(f"Unsupported LLM provider: {llm_provider}")
             

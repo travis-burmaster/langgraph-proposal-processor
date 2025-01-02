@@ -5,6 +5,7 @@ from langchain_google_vertexai import VertexAIEmbeddings
 from langchain_community.vectorstores import SupabaseVectorStore
 from supabase import create_client
 
+
 def upload_documents(
     docs_dir: str,
     supabase_url: str,
