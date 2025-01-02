@@ -7,13 +7,19 @@ from langchain.chat_models import ChatOpenAI
 from langchain.prompts import PromptTemplate
 from langchain_community.vectorstores import SupabaseVectorStore
 from langchain_google_vertexai import VertexAI, VertexAIEmbeddings, ChatVertexAI
-#from langchain_openai import OpenAIEmbeddings
 from supabase import create_client
 from reportlab.pdfgen import canvas
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
 from google.cloud import aiplatform
 import smtplib, time
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 class ProposalProcessor:
     def __init__(
@@ -27,12 +33,14 @@ class ProposalProcessor:
         credentials_path: Optional[str] = None,
         email_config: Optional[TypedDict] = None
     ):
+        logger.info("Initializing ProposalProcessor with provider: %s", llm_provider)
         self.wait_between_api_calls = 35
 
         # Initialize LLM based on provider
         if llm_provider == "openai":
             if not openai_api_key:
                 raise ValueError("OpenAI API key required when using OpenAI provider")
+            logger.info("Setting up OpenAI LLM")
             self.llm = ChatOpenAI(
                 model_name="gpt-4-turbo-preview",
                 api_key=openai_api_key,
@@ -41,11 +49,7 @@ class ProposalProcessor:
         elif llm_provider == "vertex":
             if not all([gcp_project_id, gcp_location, credentials_path]):
                 raise ValueError("gcp_project_id, gcp_location, and credentials_path required for Vertex AI")
-            # aiplatform.init(
-            #     project=gcp_project_id,
-            #     gcp_location=gcp_location,
-            #     credentials=credentials_path
-            # )
+            logger.info("Setting up Vertex AI LLM")
             self.llm = ChatVertexAI(
                 model_name="gemini-1.5-flash-002",
                 max_output_tokens=2048,
@@ -64,6 +68,7 @@ class ProposalProcessor:
             
         self.email_config = email_config
 
+        logger.info("Setting up Supabase client and vector store")
         self.supabase = create_client(supabase_url, supabase_key)
         self.vectorstore = SupabaseVectorStore(
             client=self.supabase,
@@ -75,45 +80,56 @@ class ProposalProcessor:
         self.retriever = (self.vectorstore).as_retriever(search_kwargs={"k": 10})
 
     def retrieve_opportunity_docs(self, state: TypedDict) -> TypedDict:
+        logger.info("Retrieving opportunity documents")
         docs = self.retriever.get_relevant_documents(
             "opportunity requirements scope objectives criteria"
         )
+        logger.info("Retrieved %d opportunity documents", len(docs))
         state["opportunity_docs"] = docs
         return state
 
     def retrieve_corporate_docs(self, state: TypedDict) -> TypedDict:
+        logger.info("Retrieving corporate documents")
         time.sleep(self.wait_between_api_calls)
         docs = self.retriever.get_relevant_documents(
             "company overview history mission values"
         )
+        logger.info("Retrieved %d corporate documents", len(docs))
         state["corporate_docs"] = docs
         return state
 
     def retrieve_staff_docs(self, state: TypedDict) -> TypedDict:
+        logger.info("Retrieving staff documents")
         time.sleep(self.wait_between_api_calls)
         docs = self.retriever.get_relevant_documents(
             "staff profiles expertise qualifications experience"
         )
+        logger.info("Retrieved %d staff documents", len(docs))
         state["staff_docs"] = docs
         return state
 
     def retrieve_capabilities_docs(self, state: TypedDict) -> TypedDict:
+        logger.info("Retrieving capabilities documents")
         time.sleep(self.wait_between_api_calls)
         opportunity_text = "\n".join([doc.page_content for doc in state["opportunity_docs"]])
         query = f"capabilities and competencies relevant to: {opportunity_text}"
         docs = self.retriever.get_relevant_documents(query)
+        logger.info("Retrieved %d capabilities documents", len(docs))
         state["capabilities_docs"] = docs
         return state
 
     def retrieve_experience_docs(self, state: TypedDict) -> TypedDict:
+        logger.info("Retrieving experience documents")
         time.sleep(self.wait_between_api_calls)
         opportunity_text = "\n".join([doc.page_content for doc in state["opportunity_docs"]])
         query = f"past projects and experience relevant to: {opportunity_text}"
         docs = self.retriever.get_relevant_documents(query)
+        logger.info("Retrieved %d experience documents", len(docs))
         state["experience_docs"] = docs
         return state
 
     def generate_section(self, state: TypedDict, section: str, docs_key: str) -> str:
+        logger.info("Generating section: %s", section)
         templates = {
             "corporate_overview": "Write a comprehensive corporate overview based on: {documents}",
             "staff_profile": "Create detailed staff profiles highlighting relevant expertise based on: {documents}",
@@ -128,9 +144,12 @@ class ProposalProcessor:
         )
         docs_text = "\n".join([doc.page_content for doc in state[docs_key]])
         chain = prompt | self.llm
-        return chain.invoke({"documents": docs_text})
+        response = chain.invoke({"documents": docs_text})
+        logger.info("Generated content for section: %s (length: %d chars)", section, len(response))
+        return response
 
     def build_document(self, state: TypedDict) -> TypedDict:
+        logger.info("Building document")
         sections = {
             "corporate_overview": "corporate_docs",
             "staff_profile": "staff_docs",
@@ -144,6 +163,7 @@ class ProposalProcessor:
             content[section] = self.generate_section(state, section, docs_key)
             
         pdf_path = "proposal_response.pdf"
+        logger.info("Creating PDF: %s", pdf_path)
         c = canvas.Canvas(pdf_path)
         y = 800
         
@@ -166,13 +186,16 @@ class ProposalProcessor:
             y -= 30
         
         c.save()
+        logger.info("PDF created successfully")
         state["pdf_path"] = pdf_path
         return state
 
     def send_email(self, state: TypedDict) -> TypedDict:
         if not self.email_config or not state.get("send_email"):
+            logger.info("Skipping email send (not configured or not requested)")
             return state
 
+        logger.info("Preparing email")
         msg = MIMEMultipart()
         msg["From"] = self.email_config["from"]
         msg["To"] = self.email_config["to"]
@@ -183,14 +206,15 @@ class ProposalProcessor:
             pdf.add_header("Content-Disposition", "attachment", filename="proposal_response.pdf")
             msg.attach(pdf)
 
+        logger.info("Sending email to %s", self.email_config["to"])
         with smtplib.SMTP(self.email_config["smtp_server"]) as server:
             server.starttls()
             server.login(self.email_config["username"], self.email_config["password"])
             server.send_message(msg)
+        logger.info("Email sent successfully")
 
         return state
     
-    # First, define a TypedDict for your state schema
     class ProposalState(TypedDict):
         opportunity_docs: List
         corporate_docs: List
@@ -201,6 +225,7 @@ class ProposalProcessor:
         send_email: bool
 
     def build_graph(self) -> StateGraph:
+        logger.info("Building workflow graph")
         workflow = StateGraph(self.ProposalState)
 
         workflow.add_node("opportunity", self.retrieve_opportunity_docs)
@@ -211,7 +236,7 @@ class ProposalProcessor:
         workflow.add_node("build", self.build_document)
         workflow.add_node("email", self.send_email)
 
-        workflow.add_edge(START, "opportunity")  # Set as the entry point
+        workflow.add_edge(START, "opportunity")
         workflow.add_edge("opportunity", "corporate")
         workflow.add_edge("corporate", "staff")
         workflow.add_edge("staff", "capabilities")
@@ -220,5 +245,5 @@ class ProposalProcessor:
         workflow.add_edge("build", "email")
         workflow.add_edge("email", END)
 
-    # Compile and return the workflow
+        logger.info("Workflow graph built successfully")
         return workflow.compile()
