@@ -34,7 +34,8 @@ class ProposalProcessor:
         email_config: Optional[TypedDict] = None
     ):
         logger.info("Initializing ProposalProcessor with provider: %s", llm_provider)
-        self.wait_between_api_calls = 35
+        self.wait_between_api_calls = 1
+        self.wait_between_api_sections= 60
 
         # Initialize LLM based on provider
         if llm_provider == "openai":
@@ -77,7 +78,7 @@ class ProposalProcessor:
             query_name="match_documents"
         )
 
-        self.retriever = (self.vectorstore).as_retriever(search_kwargs={"k": 10})
+        self.retriever = (self.vectorstore).as_retriever(search_kwargs={"k": 1})
 
     def retrieve_opportunity_docs(self, state: TypedDict) -> TypedDict:
         logger.info("Retrieving opportunity documents")
@@ -145,7 +146,9 @@ class ProposalProcessor:
         docs_text = "\n".join([doc.page_content for doc in state[docs_key]])
         chain = prompt | self.llm
         response = chain.invoke({"documents": docs_text})
-        logger.info("Generated content for section: %s (length: %d chars)", section, len(response))
+        logger.info("Generated content for section: ", section)
+        logger.info(type(response))
+        logger.info(response.content[:100])
         return response
 
     def build_document(self, state: TypedDict) -> TypedDict:
@@ -160,7 +163,9 @@ class ProposalProcessor:
         
         content = {}
         for section, docs_key in sections.items():
+            logger.info("Generating section: %s", section)
             content[section] = self.generate_section(state, section, docs_key)
+            time.sleep(self.wait_between_api_sections)
             
         pdf_path = "proposal_response.pdf"
         logger.info("Creating PDF: %s", pdf_path)
