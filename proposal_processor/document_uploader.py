@@ -1,49 +1,66 @@
-from pathlib import Path
-from typing import Literal
-from langchain_community.embeddings import OpenAIEmbeddings
+import os
+import io
+from typing import List
+from langchain.schema import Document
 from langchain_google_vertexai import VertexAIEmbeddings
-from langchain_community.vectorstores import SupabaseVectorStore
-from supabase import create_client
+from langchain_community.vectorstores import Chroma
+from PyPDF2 import PdfReader
+from docx import Document as DocxDocument
 
-def upload_documents(
-    docs_dir: str,
-    supabase_url: str,
-    supabase_key: str,
-    embedding_provider: Literal["openai", "vertex"] = "openai",
-    api_key: str = None,
-    project_id: str = None,
-    location: str = None
-):
-    supabase = create_client(supabase_url, supabase_key)
+def upload_documents(directory_path: str) -> None:
+    """
+    Upload documents from a directory to Chroma vector store.
     
-    # Configure embeddings based on provider
-    if embedding_provider == "openai":
-        if not api_key:
-            raise ValueError("OpenAI API key required")
-        embeddings = OpenAIEmbeddings(openai_api_key=api_key)
-    elif embedding_provider == "vertex":
-        if not all([project_id, location]):
-            raise ValueError("project_id and location required for Vertex AI")
-        embeddings = VertexAIEmbeddings(
-            project=project_id,
-            location=location
-        )
-    else:
-        raise ValueError(f"Unsupported embedding provider: {embedding_provider}")
-    
-    vectorstore = SupabaseVectorStore(
-        client=supabase,
-        embedding_function=embeddings,
-        table_name="documents"
+    Args:
+        directory_path (str): Path to directory containing documents
+    """
+    documents = []
+    for filename in os.listdir(directory_path):
+        file_path = os.path.join(directory_path, filename)
+        if os.path.isfile(file_path):
+            try:
+                # Open files in binary mode
+                with open(file_path, 'rb') as f:
+                    binary_content = f.read()
+                    
+                    # Handle different file types
+                    if filename.lower().endswith('.pdf'):
+                        reader = PdfReader(io.BytesIO(binary_content))
+                        text = ""
+                        for page in reader.pages:
+                            text += page.extract_text()
+                    
+                    elif filename.lower().endswith(('.doc', '.docx')):
+                        doc = DocxDocument(io.BytesIO(binary_content))
+                        text = "\n".join([paragraph.text for paragraph in doc.paragraphs])
+                    
+                    else:  # Try different encodings for text files
+                        encodings = ['utf-8', 'latin-1', 'iso-8859-1', 'cp1252']
+                        text = None
+                        for encoding in encodings:
+                            try:
+                                text = binary_content.decode(encoding)
+                                break
+                            except UnicodeDecodeError:
+                                continue
+                        if text is None:
+                            print(f"Warning: Could not decode {filename} with any supported encoding")
+                            continue
+                    
+                    documents.append(Document(page_content=text, metadata={"source": filename}))
+            except Exception as e:
+                print(f"Error processing {filename}: {str(e)}")
+                continue
+
+    # Initialize embeddings and vector store
+    embeddings = VertexAIEmbeddings(
+        model_name="textembedding-gecko"
     )
     
-    docs_path = Path(docs_dir)
-    for doc_path in docs_path.glob("**/*"):
-        if doc_path.is_file():
-            with open(doc_path, 'r') as f:
-                content = f.read()
-                metadata = {
-                    "source": str(doc_path),
-                    "filename": doc_path.name
-                }
-                vectorstore.add_texts([content], metadatas=[metadata])
+    vectordb = Chroma.from_documents(
+        documents=documents,
+        embedding=embeddings,
+        persist_directory="chroma_db"
+    )
+    
+    vectordb.persist()
