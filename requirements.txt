@@ -5,3 +5,4 @@ reportlab>=4.0.0
 google-cloud-aiplatform>=1.35.0
 openai>=1.0.0
 python-dotenv>=1.0.0
+langchain_community
