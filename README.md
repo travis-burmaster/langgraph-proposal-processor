@@ -46,15 +46,15 @@ create extension if not exists vector;
 
 -- Create the documents table with vector storage
 create table documents (
-  id bigserial primary key,
+  id uuid primary key,
   content text,
   metadata jsonb,
-  embedding vector(1536)
+  embedding vector(768)
 );
 
 -- Create a function to handle vector similarity search
 create or replace function match_documents (
-  query_embedding vector(1536),
+  query_embedding vector(768),
   match_count int
 ) returns table (id bigint, content text, metadata jsonb, similarity float)
 language plpgsql

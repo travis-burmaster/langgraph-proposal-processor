@@ -25,7 +25,7 @@ def upload_documents(
         if not all([project_id, location]):
             raise ValueError("project_id and location required for Vertex AI")
         embeddings = VertexAIEmbeddings(
-            model_name="textembedding-gecko",
+            model_name="text-embedding-004",
             project=project_id,
             location=location
         )
@@ -41,10 +41,11 @@ def upload_documents(
     docs_path = Path(docs_dir)
     for doc_path in docs_path.glob("**/*"):
         if doc_path.is_file():
-            with open(doc_path, 'r') as f:
+            with open(doc_path, 'r', encoding='latin-1') as f:
                 content = f.read()
                 metadata = {
                     "source": str(doc_path),
                     "filename": doc_path.name
                 }
+                content = content.replace('\x00', '')
                 vectorstore.add_texts([content], metadatas=[metadata])
