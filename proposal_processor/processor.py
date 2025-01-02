@@ -3,6 +3,8 @@ from langgraph.graph import StateGraph, END
 from langchain.chat_models import ChatOpenAI, ChatVertexAI
 from langchain.prompts import PromptTemplate
 from langchain_community.vectorstores import SupabaseVectorStore
+from langchain_google_vertexai import VertexAI, ChatVertexAI, VertexAIEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from supabase import create_client
 from reportlab.pdfgen import canvas
 from email.mime.multipart import MIMEMultipart
@@ -50,7 +52,7 @@ class ProposalProcessor:
             )
             embeddings = VertexAIEmbeddings(
                 model_name="text-embedding-004",
-                project=project_id,
+                project=gcp_project_id,
                 location=gcp_location
             )
         else:
