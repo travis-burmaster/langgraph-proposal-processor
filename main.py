@@ -1,7 +1,13 @@
+import os
+from dotenv import load_dotenv
+from proposal_processor import ProposalProcessor
+# Load environment variables
+load_dotenv()
+
 # Initialize the processor
 processor = ProposalProcessor(
-    supabase_url="your_supabase_url",
-    supabase_key="your_supabase_key",
+    supabase_url=os.getenv("SUPABASE_URL"),
+    supabase_key=os.getenv("SUPABASE_SERVICE_KEY"),
     openai_api_key="your_openai_key",
     email_config={
         "from": "sender@example.com",
@@ -14,5 +20,5 @@ processor = ProposalProcessor(
 
 # Build and run the graph
 graph = processor.build_graph()
-state = {"send_email": True}  # Set to False to skip email
+state = {"send_email": False}  # Set to False to skip email
 graph.run(state)
