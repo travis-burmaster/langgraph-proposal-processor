@@ -7,7 +7,7 @@ load_dotenv()
 
 # Upload documents
 upload_documents(
-    docs_dir="docs",  # Directory containing your documents
+    docs_dir=os.getenv("PATH_TO_FILES"),  # Directory containing your documents
     supabase_url=os.getenv("SUPABASE_URL"),
     supabase_key=os.getenv("SUPABASE_SERVICE_KEY"),
     embedding_provider="vertex",  # or "vertex"

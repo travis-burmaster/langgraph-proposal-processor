@@ -25,6 +25,7 @@ def upload_documents(
         if not all([project_id, location]):
             raise ValueError("project_id and location required for Vertex AI")
         embeddings = VertexAIEmbeddings(
+            model_name="textembedding-gecko",
             project=project_id,
             location=location
         )
@@ -33,7 +34,7 @@ def upload_documents(
     
     vectorstore = SupabaseVectorStore(
         client=supabase,
-        embedding_function=embeddings,
+        embedding=embeddings,
         table_name="documents"
     )
     
