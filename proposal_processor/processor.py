@@ -2,10 +2,13 @@ from typing import TypedDict, Optional,List
 
 from langgraph.graph import StateGraph, START, END
 from langchain.chat_models import ChatOpenAI
+from typing import Dict, Optional
+from langgraph.graph import StateGraph, END
+from langchain.chat_models import ChatOpenAI
 from langchain.prompts import PromptTemplate
 from langchain_community.vectorstores import SupabaseVectorStore
-from langchain_google_vertexai import VertexAI, VertexAIEmbeddings
-from langchain_openai import OpenAIEmbeddings
+from langchain_google_vertexai import VertexAI, VertexAIEmbeddings, ChatVertexAI
+#from langchain_openai import OpenAIEmbeddings
 from supabase import create_client
 from reportlab.pdfgen import canvas
 from email.mime.multipart import MIMEMultipart
@@ -193,15 +196,7 @@ class ProposalProcessor:
         send_email: bool
 
     def build_graph(self) -> StateGraph:
-        workflow = StateGraph(state_schema={
-            "opportunity_docs": list,
-            "corporate_docs": list,
-            "staff_docs": list,
-            "capabilities_docs": list,
-            "experience_docs": list,
-            "pdf_path": str,
-            "send_email": bool
-        })
+        workflow = StateGraph(self.ProposalState)
 
         workflow.add_node("opportunity", self.retrieve_opportunity_docs)
         # workflow.add_node("corporate", self.retrieve_corporate_docs)
@@ -211,8 +206,6 @@ class ProposalProcessor:
         # workflow.add_node("build", self.build_document)
         workflow.add_node("email", self.send_email)
 
-    # Define the sequential flow of the workflow
-    # Define edges
         workflow.add_edge(START, "opportunity")  # Set as the entry point
         #workflow.add_edge("opportunity", "corporate")
         workflow.add_edge("opportunity", "email")
