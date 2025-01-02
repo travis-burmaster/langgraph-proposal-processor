@@ -28,4 +28,4 @@ processor = ProposalProcessor(
 # Build and run the graph
 graph = processor.build_graph()
 state = {"send_email": False}  # Set to False to skip email
-graph.run(state)
+graph.invoke(state)

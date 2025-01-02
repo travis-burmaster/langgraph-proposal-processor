@@ -1,5 +1,6 @@
-from typing import Dict, Optional
-from langgraph.graph import StateGraph, END
+from typing import TypedDict, Optional,List
+
+from langgraph.graph import StateGraph, START, END
 from langchain.chat_models import ChatOpenAI
 from langchain.prompts import PromptTemplate
 from langchain_community.vectorstores import SupabaseVectorStore
@@ -23,7 +24,7 @@ class ProposalProcessor:
         gcp_project_id: Optional[str] = None,
         gcp_location: Optional[str] = None,
         credentials_path: Optional[str] = None,
-        email_config: Optional[Dict] = None
+        email_config: Optional[TypedDict] = None
     ):
         
         # Initialize LLM based on provider
@@ -72,42 +73,42 @@ class ProposalProcessor:
 
         self.retriever = (self.vectorstore).as_retriever()
 
-    def retrieve_opportunity_docs(self, state: Dict) -> Dict:
+    def retrieve_opportunity_docs(self, state: TypedDict) -> TypedDict:
         docs = self.retriever.get_relevant_documents(
             "opportunity requirements scope objectives criteria"
         )
         state["opportunity_docs"] = docs
         return state
 
-    def retrieve_corporate_docs(self, state: Dict) -> Dict:
+    def retrieve_corporate_docs(self, state: TypedDict) -> TypedDict:
         docs = self.retriever.get_relevant_documents(
             "company overview history mission values"
         )
         state["corporate_docs"] = docs
         return state
 
-    def retrieve_staff_docs(self, state: Dict) -> Dict:
+    def retrieve_staff_docs(self, state: TypedDict) -> TypedDict:
         docs = self.retriever.get_relevant_documents(
             "staff profiles expertise qualifications experience"
         )
         state["staff_docs"] = docs
         return state
 
-    def retrieve_capabilities_docs(self, state: Dict) -> Dict:
+    def retrieve_capabilities_docs(self, state: TypedDict) -> TypedDict:
         opportunity_text = "\n".join([doc.page_content for doc in state["opportunity_docs"]])
         query = f"capabilities and competencies relevant to: {opportunity_text}"
         docs = self.retriever.get_relevant_documents(query)
         state["capabilities_docs"] = docs
         return state
 
-    def retrieve_experience_docs(self, state: Dict) -> Dict:
+    def retrieve_experience_docs(self, state: TypedDict) -> TypedDict:
         opportunity_text = "\n".join([doc.page_content for doc in state["opportunity_docs"]])
         query = f"past projects and experience relevant to: {opportunity_text}"
         docs = self.retriever.get_relevant_documents(query)
         state["experience_docs"] = docs
         return state
 
-    def generate_section(self, state: Dict, section: str, docs_key: str) -> str:
+    def generate_section(self, state: TypedDict, section: str, docs_key: str) -> str:
         templates = {
             "corporate_overview": "Write a comprehensive corporate overview based on: {documents}",
             "staff_profile": "Create detailed staff profiles highlighting relevant expertise based on: {documents}",
@@ -124,7 +125,7 @@ class ProposalProcessor:
         chain = prompt | self.llm
         return chain.invoke({"documents": docs_text})
 
-    def build_document(self, state: Dict) -> Dict:
+    def build_document(self, state: TypedDict) -> TypedDict:
         sections = {
             "corporate_overview": "corporate_docs",
             "staff_profile": "staff_docs",
@@ -163,7 +164,7 @@ class ProposalProcessor:
         state["pdf_path"] = pdf_path
         return state
 
-    def send_email(self, state: Dict) -> Dict:
+    def send_email(self, state: TypedDict) -> TypedDict:
         if not self.email_config or not state.get("send_email"):
             return state
 
@@ -183,24 +184,41 @@ class ProposalProcessor:
             server.send_message(msg)
 
         return state
+    
+    # First, define a TypedDict for your state schema
+    class ProposalState(TypedDict):
+        opportunity_docs: List
+        corporate_docs: List
+        staff_docs: List
+        capabilities_docs: List
+        experience_docs: List
+        pdf_path: str
+        send_email: bool
 
     def build_graph(self) -> StateGraph:
-        workflow = StateGraph()
-
+    # Initialize state graph with ProposalState schema
+        workflow = StateGraph(self.ProposalState)
+        
+    # Add all nodes to the workflow
         workflow.add_node("opportunity", self.retrieve_opportunity_docs)
-        workflow.add_node("corporate", self.retrieve_corporate_docs)
-        workflow.add_node("staff", self.retrieve_staff_docs)
-        workflow.add_node("capabilities", self.retrieve_capabilities_docs)
-        workflow.add_node("experience", self.retrieve_experience_docs)
-        workflow.add_node("build", self.build_document)
+        # workflow.add_node("corporate", self.retrieve_corporate_docs)
+        # workflow.add_node("staff", self.retrieve_staff_docs)
+        # workflow.add_node("capabilities", self.retrieve_capabilities_docs)
+        # workflow.add_node("experience", self.retrieve_experience_docs)
+        # workflow.add_node("build", self.build_document)
         workflow.add_node("email", self.send_email)
 
-        workflow.add_edge("opportunity", "corporate")
-        workflow.add_edge("corporate", "staff")
-        workflow.add_edge("staff", "capabilities")
-        workflow.add_edge("capabilities", "experience")
-        workflow.add_edge("experience", "build")
-        workflow.add_edge("build", "email")
+    # Define the sequential flow of the workflow
+    # Define edges
+        workflow.add_edge(START, "opportunity")  # Set as the entry point
+        #workflow.add_edge("opportunity", "corporate")
+        workflow.add_edge("opportunity", "email")
+        # workflow.add_edge("corporate", "staff")
+        # workflow.add_edge("staff", "capabilities")
+        # workflow.add_edge("capabilities", "experience")
+        # workflow.add_edge("experience", "build")
+        # workflow.add_edge("build", "email")
         workflow.add_edge("email", END)
 
-        return workflow
+    # Compile and return the workflow
+        return workflow.compile()
