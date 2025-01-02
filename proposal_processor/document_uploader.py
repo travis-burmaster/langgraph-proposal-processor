@@ -4,7 +4,7 @@ from langchain_community.embeddings import OpenAIEmbeddings
 from langchain_google_vertexai import VertexAIEmbeddings
 from langchain_community.vectorstores import SupabaseVectorStore
 from supabase import create_client
-
+import PyPDF2
 
 def upload_documents(
     docs_dir: str,
@@ -42,11 +42,21 @@ def upload_documents(
     docs_path = Path(docs_dir)
     for doc_path in docs_path.glob("**/*"):
         if doc_path.is_file():
-            with open(doc_path, 'r', encoding='latin-1') as f:
-                content = f.read()
-                metadata = {
-                    "source": str(doc_path),
-                    "filename": doc_path.name
-                }
-                content = content.replace('\x00', '')
-                vectorstore.add_texts([content], metadatas=[metadata])
+            if doc_path.suffix.lower() == '.pdf':
+                # Handle PDF files
+                with open(doc_path, 'rb') as f:
+                    pdf_reader = PyPDF2.PdfReader(f)
+                    content = ""
+                    for page in pdf_reader.pages:
+                        content += page.extract_text() + "\n"
+            else:
+                # Handle other text files
+                with open(doc_path, 'r', encoding='latin-1') as f:
+                    content = f.read()
+            
+            metadata = {
+                "source": str(doc_path),
+                "filename": doc_path.name
+            }
+            content = content.replace('\x00', '')
+            vectorstore.add_texts([content], metadatas=[metadata])
