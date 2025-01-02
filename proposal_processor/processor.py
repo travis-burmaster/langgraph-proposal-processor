@@ -17,8 +17,8 @@ class ProposalProcessor:
         supabase_key: str,
         llm_provider: str = "openai",
         openai_api_key: Optional[str] = None,
-        project_id: Optional[str] = None,
-        location: Optional[str] = None,
+        gcp_project_id: Optional[str] = None,
+        gcp_location: Optional[str] = None,
         credentials_path: Optional[str] = None,
         email_config: Optional[Dict] = None
     ):
@@ -39,19 +39,19 @@ class ProposalProcessor:
                 api_key=openai_api_key
             )
         elif llm_provider == "vertex":
-            if not all([project_id, location, credentials_path]):
-                raise ValueError("project_id, location, and credentials_path required for Vertex AI")
+            if not all([gcp_project_id, gcp_location, credentials_path]):
+                raise ValueError("gcp_project_id, gcp_location, and credentials_path required for Vertex AI")
             aiplatform.init(
-                project=project_id,
-                location=location,
+                project=gcp_project_id,
+                gcp_location=gcp_location,
                 credentials=credentials_path
             )
             self.llm = ChatVertexAI(
                 model_name="gemini-pro",
                 max_output_tokens=2048,
                 temperature=0.2,
-                project=project_id,
-                location=location,
+                project=gcp_project_id,
+                gcp_location=gcp_location,
                 credentials_path=credentials_path
             )
         else:
