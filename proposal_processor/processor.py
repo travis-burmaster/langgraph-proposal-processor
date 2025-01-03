@@ -9,6 +9,8 @@ from langchain_community.vectorstores import SupabaseVectorStore
 from langchain_google_vertexai import VertexAI, VertexAIEmbeddings, ChatVertexAI
 from supabase import create_client
 from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
 from google.cloud import aiplatform
@@ -197,8 +199,10 @@ class ProposalProcessor:
             
         pdf_path = "proposal_response.pdf"
         logger.info("Creating PDF: %s", pdf_path)
-        c = canvas.Canvas(pdf_path)
-        y = 800
+        c = canvas.Canvas(pdf_path, pagesize=letter)
+        c.setFont("Helvetica", 12)
+        width, height = letter
+        y = height - 50
         
         for section, text in content.items():
             title = section.replace("_", " ").upper()
@@ -216,7 +220,10 @@ class ProposalProcessor:
                     line = word + " "
             if line:
                 c.drawString(50, y, line)
-            y -= 30
+            y -= 20
+            if y < 50:  # Add new page if content exceeds one page
+                c.showPage()
+                y = height - 50
         
         c.save()
         logger.info("PDF created successfully")
