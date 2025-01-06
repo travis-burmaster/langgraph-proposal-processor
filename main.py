@@ -10,7 +10,7 @@ processor = ProposalProcessor(
     supabase_url=os.getenv("SUPABASE_URL"),
     supabase_key=os.getenv("SUPABASE_SERVICE_KEY"),
     openai_api_key=os.getenv("OPENAI_API_KEY"),
-    llm_provider="vertex",
+    llm_provider="openai",
     #use_vertex_ai=os.getenv("USE_VERTEX_AI", "false").lower() == "true",
     gcp_project_id=os.getenv("GCP_PROJECT_ID"),
     gcp_location=os.getenv("GCP_LOCATION", "us-west1"),
